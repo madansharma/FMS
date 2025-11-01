@@ -26,7 +26,7 @@ export default function ProductsPage({ onNavigate }: ProductsPageProps) {
                 <MessageSquare className="text-white" size={32} />
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                Sahayak Connect
+                TechFlow Connect
               </h2>
               <p className="text-lg text-gray-600 mb-6">
                 Transform customer conversations into lasting relationships. Our intelligent messaging platform brings all your communication channels into one unified hub.
@@ -83,7 +83,7 @@ export default function ProductsPage({ onNavigate }: ProductsPageProps) {
                 <Users className="text-white" size={32} />
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                Sahayak Teams
+                TechFlow Teams
               </h2>
               <p className="text-lg text-gray-600 mb-6">
                 Empower your workforce with seamless collaboration tools. Built for remote and hybrid teams who need to stay connected and productive.
@@ -124,7 +124,7 @@ export default function ProductsPage({ onNavigate }: ProductsPageProps) {
                 <BarChart3 className="text-white" size={32} />
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                Sahayak Analytics
+                TechFlow Analytics
               </h2>
               <p className="text-lg text-gray-600 mb-6">
                 Turn data into decisions with powerful analytics. Get real-time insights into your business performance and customer behavior.
