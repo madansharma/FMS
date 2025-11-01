@@ -1,89 +1,63 @@
 import { supabase } from '../lib/supabase';
-import type { User, UserType } from '../types/database';
 
 export interface AuthUser {
   id: string;
   email: string;
-  user_type: UserType;
+  role: 'admin' | 'executor';
   name: string;
 }
 
+let currentUser: AuthUser | null = null;
+
 export const authService = {
-  async signUp(email: string, password: string, userData: { name: string; user_type: UserType }) {
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
+  async signIn(email: string, password: string): Promise<{ user: AuthUser }> {
+    const { data, error } = await supabase.rpc('verify_user_password', {
+      user_email: email,
+      user_password: password
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('User creation failed');
+    if (error) {
+      throw new Error('Invalid email or password');
+    }
 
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email,
-        user_type: userData.user_type,
-        name: userData.name,
-      })
-      .select()
-      .single();
+    if (!data || data.length === 0) {
+      throw new Error('Invalid email or password');
+    }
 
-    if (userError) throw userError;
+    const user = data[0];
+    currentUser = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name
+    };
 
-    return { user, authUser: authData.user };
-  },
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
-  async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-    if (!data.user) throw new Error('Login failed');
-
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
-
-    if (userError) throw userError;
-
-    return { user: user as User, session: data.session };
+    return { user: currentUser };
   },
 
   async signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    currentUser = null;
+    localStorage.removeItem('currentUser');
   },
 
-  async getCurrentUser(): Promise<User | null> {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+  async getCurrentUser(): Promise<AuthUser | null> {
+    if (currentUser) {
+      return currentUser;
+    }
 
-    if (!authUser) return null;
+    const stored = localStorage.getItem('currentUser');
+    if (stored) {
+      currentUser = JSON.parse(stored);
+      return currentUser;
+    }
 
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single();
-
-    if (error) return null;
-    return user as User;
+    return null;
   },
 
-  async getSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
-  },
-
-  onAuthStateChange(callback: (event: string, session: any) => void) {
-    return supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        callback(event, session);
-      })();
-    });
-  },
+  async isAuthenticated(): Promise<boolean> {
+    const user = await this.getCurrentUser();
+    return user !== null;
+  }
 };
