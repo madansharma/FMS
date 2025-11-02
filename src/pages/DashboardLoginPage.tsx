@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Building } from 'lucide-react';
-import { authService } from '../services/auth.service';
 
 interface DashboardLoginPageProps {
   onLogin: (role: 'admin' | 'executor') => void;
@@ -16,26 +15,19 @@ export default function DashboardLoginPage({ onLogin }: DashboardLoginPageProps)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
-      const { user } = await authService.signIn(formData.email, formData.password);
-
-      if (user.role === 'admin') {
-        onLogin('admin');
-      } else if (user.role === 'executor') {
-        onLogin('executor');
-      } else {
-        setError('Invalid user type for dashboard access');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      if (formData.email.includes('admin')) {
+        onLogin('admin');
+      } else {
+        onLogin('executor');
+      }
+    }, 500);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,7 +129,7 @@ export default function DashboardLoginPage({ onLogin }: DashboardLoginPageProps)
 
           <div className="mt-6 pt-6 border-t border-gray-300">
             <p className="text-xs text-center text-gray-500">
-              Need an account? Contact your system administrator.
+              Demo: Use "admin@company.com" for Admin or "executor@company.com" for Executor
             </p>
           </div>
         </div>

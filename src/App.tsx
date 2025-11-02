@@ -11,7 +11,6 @@ import SupportPage from './pages/SupportPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardLoginPage from './pages/DashboardLoginPage';
-import SetupAdminPage from './pages/SetupAdminPage';
 import DashboardLayout from './dashboard/DashboardLayout';
 import ExecutorDashboard from './dashboard/screens/ExecutorDashboard';
 import ExecutorTicketDetail from './dashboard/screens/ExecutorTicketDetail';
@@ -34,7 +33,6 @@ function App() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [editUserId, setEditUserId] = useState<string | null>(null);
   const [userFormType, setUserFormType] = useState<string>('complainant');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleNavigate = (page: string, param?: string) => {
     if (page === 'executor-ticket') {
@@ -106,9 +104,9 @@ function App() {
       case 'admin-tickets':
         return <AdminAllTickets onNavigate={handleNavigate} />;
       case 'complainants':
-        return <UserManagementComplainants key={refreshTrigger} onNavigate={handleNavigate} />;
+        return <UserManagementComplainants onNavigate={handleNavigate} />;
       case 'executors':
-        return <UserManagementExecutors key={refreshTrigger} onNavigate={handleNavigate} />;
+        return <UserManagementExecutors onNavigate={handleNavigate} />;
       case 'config-categories':
         return <ConfigCategories />;
       case 'config-allocation':
@@ -123,10 +121,6 @@ function App() {
         return userRole === 'admin' ? <AdminDashboard /> : <ExecutorDashboard onNavigate={handleNavigate} />;
     }
   };
-
-  if (currentPage === 'setup') {
-    return <SetupAdminPage />;
-  }
 
   if (currentPage === 'login') {
     return <DashboardLoginPage onLogin={handleLogin} />;
@@ -161,9 +155,6 @@ function App() {
           onClose={() => {
             setShowUserForm(false);
             setEditUserId(null);
-          }}
-          onSuccess={() => {
-            setRefreshTrigger(prev => prev + 1);
           }}
         />
       )}
