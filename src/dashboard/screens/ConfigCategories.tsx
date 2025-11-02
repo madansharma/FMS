@@ -1,431 +1,283 @@
 import { useState, useEffect } from 'react';
-import * as Icons from 'lucide-react';
-import { categoriesService } from '../../services/categories.service';
+import { Plus, Edit, Trash2, X, AlertCircle } from 'lucide-react';
+import { configService } from '../../services/config.service';
 import type { Category } from '../../types/database';
-
-const ICON_OPTIONS = [
-  'wind', 'zap', 'droplet', 'armchair', 'monitor', 'sparkles', 'shield',
-  'wrench', 'hammer', 'paintbrush', 'lightbulb', 'wifi', 'settings',
-  'tool', 'package', 'clipboard', 'bell', 'lock', 'key', 'camera'
-];
-
-const COLOR_OPTIONS = [
-  { name: 'Blue', value: '#3B82F6' },
-  { name: 'Cyan', value: '#06B6D4' },
-  { name: 'Green', value: '#10B981' },
-  { name: 'Yellow', value: '#F59E0B' },
-  { name: 'Orange', value: '#F97316' },
-  { name: 'Red', value: '#EF4444' },
-  { name: 'Pink', value: '#EC4899' },
-  { name: 'Purple', value: '#8B5CF6' },
-  { name: 'Slate', value: '#64748B' },
-];
 
 export default function ConfigCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [ticketCounts, setTicketCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    icon: 'wrench',
-    color: '#3B82F6',
-    keywords: [] as string[],
     active: true,
-    ai_available: false,
   });
-
-  const [keywordInput, setKeywordInput] = useState('');
 
   useEffect(() => {
     loadCategories();
   }, []);
 
-  async function loadCategories() {
+  const loadCategories = async () => {
     try {
       setLoading(true);
-      const data = await categoriesService.getAll();
+      const data = await configService.getAllCategories();
       setCategories(data);
-
-      const counts: Record<string, number> = {};
-      for (const category of data) {
-        const count = await categoriesService.getTicketCount(category.name, 30);
-        counts[category.id] = count;
-      }
-      setTicketCounts(counts);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load categories');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  function openModal(category?: Category) {
-    if (category) {
-      setEditingCategory(category);
-      setFormData({
-        name: category.name,
-        description: category.description || '',
-        icon: category.icon || 'wrench',
-        color: category.color || '#3B82F6',
-        keywords: category.keywords || [],
-        active: category.active,
-        ai_available: category.ai_available || false,
-      });
-    } else {
-      setEditingCategory(null);
-      setFormData({
-        name: '',
-        description: '',
-        icon: 'wrench',
-        color: '#3B82F6',
-        keywords: [],
-        active: true,
-        ai_available: false,
-      });
-    }
-    setKeywordInput('');
-    setShowModal(true);
-  }
-
-  function closeModal() {
-    setShowModal(false);
+  const openCreateModal = () => {
     setEditingCategory(null);
-  }
+    setFormData({
+      name: '',
+      description: '',
+      active: true,
+    });
+    setShowModal(true);
+    setError(null);
+    setSuccessMessage(null);
+  };
 
-  async function handleSubmit(e: React.FormEvent) {
+  const openEditModal = (category: Category) => {
+    setEditingCategory(category);
+    setFormData({
+      name: category.name,
+      description: category.description || '',
+      active: category.active,
+    });
+    setShowModal(true);
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
+
     try {
       if (editingCategory) {
-        await categoriesService.update(editingCategory.id, formData);
+        await configService.updateCategory(editingCategory.id, formData);
+        setSuccessMessage('Category updated successfully!');
       } else {
-        await categoriesService.create({
-          ...formData,
-          sort_order: categories.length + 1,
-        });
+        await configService.createCategory(formData.name, formData.description);
+        setSuccessMessage('Category created successfully!');
       }
+
       await loadCategories();
-      closeModal();
-    } catch (error) {
-      console.error('Failed to save category:', error);
-      alert('Failed to save category. Please try again.');
+
+      setTimeout(() => {
+        setShowModal(false);
+        setSuccessMessage(null);
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save category');
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  function addKeyword() {
-    const keyword = keywordInput.trim().toLowerCase();
-    if (keyword && !formData.keywords.includes(keyword)) {
-      setFormData({ ...formData, keywords: [...formData.keywords, keyword] });
-      setKeywordInput('');
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the category "${name}"?`)) return;
+
+    try {
+      setLoading(true);
+      await configService.deleteCategory(id);
+      await loadCategories();
+      setSuccessMessage('Category deleted successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete category');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  function removeKeyword(keyword: string) {
-    setFormData({
-      ...formData,
-      keywords: formData.keywords.filter(k => k !== keyword),
-    });
-  }
-
-  function handleDragStart(categoryId: string) {
-    setDraggedItem(categoryId);
-  }
-
-  function handleDragOver(e: React.DragEvent, targetId: string) {
-    e.preventDefault();
-    if (draggedItem === targetId) return;
-
-    const draggedIndex = categories.findIndex(c => c.id === draggedItem);
-    const targetIndex = categories.findIndex(c => c.id === targetId);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    const newCategories = [...categories];
-    const [removed] = newCategories.splice(draggedIndex, 1);
-    newCategories.splice(targetIndex, 0, removed);
-
-    setCategories(newCategories);
-  }
-
-  async function handleDragEnd() {
-    if (draggedItem) {
-      const categoryIds = categories.map(c => c.id);
-      await categoriesService.updateSortOrder(categoryIds);
-      setDraggedItem(null);
+  const handleToggleActive = async (category: Category) => {
+    try {
+      await configService.updateCategory(category.id, { active: !category.active });
+      await loadCategories();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update category status');
+      setTimeout(() => setError(null), 3000);
     }
-  }
+  };
 
-  function renderIcon(iconName: string, className: string = '', color?: string) {
-    const Icon = (Icons as any)[iconName.charAt(0).toUpperCase() + iconName.slice(1)];
-    if (Icon) {
-      return <Icon className={className} style={color ? { color } : undefined} />;
-    }
-    return <Icons.Wrench className={className} style={color ? { color } : undefined} />;
-  }
-
-  if (loading) {
+  if (loading && categories.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-600">Loading categories...</div>
+        <div className="text-gray-500">Loading categories...</div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Categories</h1>
-          <p className="text-slate-600 mt-2">Manage ticket categories and classification</p>
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">CATEGORIES</h1>
         <button
-          onClick={() => openModal()}
-          className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+          onClick={openCreateModal}
+          className="px-4 py-2 bg-primary text-white rounded-card hover:bg-primary/90 flex items-center"
         >
-          <Icons.Plus className="w-5 h-5" />
+          <Plus size={16} className="mr-2" />
           Add Category
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories.map((category) => (
-          <div
-            key={category.id}
-            draggable
-            onDragStart={() => handleDragStart(category.id)}
-            onDragOver={(e) => handleDragOver(e, category.id)}
-            onDragEnd={handleDragEnd}
-            className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-shadow cursor-move"
+      {error && !showModal && (
+        <div className="mb-4 p-3 bg-danger/10 border border-danger text-danger rounded-card flex items-center">
+          <AlertCircle size={16} className="mr-2" />
+          {error}
+        </div>
+      )}
+
+      {successMessage && !showModal && (
+        <div className="mb-4 p-3 bg-success/10 border border-success text-success rounded-card">
+          {successMessage}
+        </div>
+      )}
+
+      {categories.length === 0 ? (
+        <div className="bg-white rounded-card shadow-sm p-12 text-center">
+          <p className="text-gray-500 text-lg mb-4">No categories found</p>
+          <button
+            onClick={openCreateModal}
+            className="text-primary hover:underline"
           >
-            <div className="flex items-start justify-between mb-4">
-              <div
-                className="p-3 rounded-lg"
-                style={{ backgroundColor: `${category.color}20` }}
-              >
-                {renderIcon(category.icon || 'wrench', 'w-6 h-6', category.color || '#3B82F6')}
+            Create your first category
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+          {categories.map((category) => (
+            <div key={category.id} className="bg-white rounded-card shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-bold text-gray-900">{category.name}</h3>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => openEditModal(category)}
+                        className="p-2 text-gray-700 hover:bg-gray-100 rounded"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(category.id, category.name)}
+                        className="p-2 text-danger hover:bg-danger/10 rounded"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500">{category.description || 'No description'}</p>
+                </div>
               </div>
-              <div className="flex gap-2">
+
+              <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                 <button
-                  onClick={() => openModal(category)}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <Icons.Edit2 className="w-4 h-4" />
-                </button>
-                <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors cursor-grab">
-                  <Icons.GripVertical className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              {category.name}
-            </h3>
-            <p className="text-sm text-slate-600 mb-4 line-clamp-2">
-              {category.description || 'No description'}
-            </p>
-
-            {category.keywords && category.keywords.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-4">
-                {category.keywords.slice(0, 3).map((keyword) => (
-                  <span
-                    key={keyword}
-                    className="text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded"
-                  >
-                    {keyword}
-                  </span>
-                ))}
-                {category.keywords.length > 3 && (
-                  <span className="text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded">
-                    +{category.keywords.length - 3}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <div className="flex gap-2">
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    category.active
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-slate-100 text-slate-600'
+                  onClick={() => handleToggleActive(category)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    category.active ? 'bg-success/10 text-success' : 'bg-gray-300 text-gray-700'
                   }`}
                 >
                   {category.active ? 'Active' : 'Inactive'}
-                </span>
-                {category.ai_available && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                    AI
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-slate-600">
-                <span className="font-semibold">{ticketCounts[category.id] || 0}</span> tickets
+                </button>
+                <div className="text-xs text-gray-500">
+                  Created {new Date(category.created_at).toLocaleDateString()}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-2xl font-bold text-slate-900">
+          <div className="bg-white rounded-card shadow-xl max-w-lg w-full">
+            <div className="px-6 py-4 border-b border-gray-300 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
                 {editingCategory ? 'Edit Category' : 'Add Category'}
               </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {error && (
+                <div className="p-3 bg-danger/10 border border-danger text-danger rounded-card flex items-center">
+                  <AlertCircle size={16} className="mr-2" />
+                  {error}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-3 bg-success/10 border border-success text-success rounded-card">
+                  {successMessage}
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-card focus:outline-none focus:border-primary"
+                  placeholder="Category name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
+                  rows={3}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-card focus:outline-none focus:border-primary"
+                  placeholder="Category description"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Icon
-                  </label>
-                  <div className="grid grid-cols-5 gap-2 p-4 border border-slate-300 rounded-lg max-h-40 overflow-y-auto">
-                    {ICON_OPTIONS.map((icon) => (
-                      <button
-                        key={icon}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, icon })}
-                        className={`p-3 rounded-lg transition-colors ${
-                          formData.icon === icon
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {renderIcon(icon, 'w-5 h-5')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Color
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 p-4 border border-slate-300 rounded-lg">
-                    {COLOR_OPTIONS.map((color) => (
-                      <button
-                        key={color.value}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color: color.value })}
-                        className={`p-3 rounded-lg transition-all ${
-                          formData.color === color.value
-                            ? 'ring-2 ring-slate-900 ring-offset-2'
-                            : ''
-                        }`}
-                        style={{ backgroundColor: color.value }}
-                      />
-                    ))}
-                  </div>
-                </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.active}
+                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                  className="w-4 h-4 text-primary border-gray-300 rounded mr-2"
+                />
+                <label className="text-sm font-medium text-gray-700">Active</label>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Keywords
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={keywordInput}
-                    onChange={(e) => setKeywordInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                    placeholder="Add keyword..."
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={addKeyword}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {formData.keywords.map((keyword) => (
-                    <span
-                      key={keyword}
-                      className="flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm"
-                    >
-                      {keyword}
-                      <button
-                        type="button"
-                        onClick={() => removeKeyword(keyword)}
-                        className="text-slate-500 hover:text-slate-700"
-                      >
-                        <Icons.X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-6">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.active}
-                    onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                  />
-                  <span className="text-sm font-medium text-slate-700">Active</span>
-                </label>
-
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.ai_available}
-                    onChange={(e) => setFormData({ ...formData, ai_available: e.target.checked })}
-                    className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                  />
-                  <span className="text-sm font-medium text-slate-700">AI Available</span>
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
-                >
-                  {editingCategory ? 'Update' : 'Create'}
-                </button>
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="flex-1 px-6 py-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                  onClick={() => setShowModal(false)}
+                  disabled={loading}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-card hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-primary text-white rounded-card hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Saving...' : editingCategory ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
